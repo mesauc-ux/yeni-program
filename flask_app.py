@@ -10182,6 +10182,16 @@ HTML_TEMPLATE = '''
             targetCell.textContent = draggedCell.textContent;
             draggedCell.textContent = '';
 
+            // ✅ AYKIRI SWAP KAYITLARINI TEMİZLE
+            const draggedStudentNames = draggedData.studentNames || [draggedData.studentName];
+            const slotsToRemove = draggedStudentNames.map(studentName => ({
+                studentName: studentName,
+                day: draggedData.day,
+                time: draggedData.time,
+                teacherName: draggedData.teacherName
+            }));
+            clearAykiriSwapForStudents(slotsToRemove);
+
             // Sınıfları güncelle
             targetCell.classList.add('draggable-cell');
             targetCell.classList.remove('empty-slot');
