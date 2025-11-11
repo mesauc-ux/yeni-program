@@ -9539,6 +9539,7 @@ HTML_TEMPLATE = '''
 
             violations.forEach(violation => {
                 let shouldRemove = false;
+                let updatedViolation = { ...violation }; // Shallow copy
 
                 for (const slot of slotsToRemove) {
                     const studentUpper = slot.studentName.toLocaleUpperCase('tr');
@@ -9559,12 +9560,39 @@ HTML_TEMPLATE = '''
                         const cleanSlotDay = extractDayName(slot.day).toLocaleUpperCase('tr');
                         const cleanViolationDay = extractDayName(id.day).toLocaleUpperCase('tr');
 
+                        // Öğrenci, gün ve saat eşleşmesi kontrolü
                         if (id.studentName.toLocaleUpperCase('tr') === studentUpper &&
                             cleanViolationDay === cleanSlotDay &&
-                            id.time === slot.time &&
-                            id.teacherName.toLocaleUpperCase('tr') === slot.teacherName.toLocaleUpperCase('tr')) {
-                            shouldRemove = true;
-                            break;
+                            id.time === slot.time) {
+
+                            // ✅ YENİ: teacherNames array'i varsa (yeni format)
+                            if (Array.isArray(id.teacherNames)) {
+                                // Taşınan öğretmeni listeden çıkar
+                                const remainingTeachers = id.teacherNames.filter(t =>
+                                    t.toLocaleUpperCase('tr') !== slot.teacherName.toLocaleUpperCase('tr')
+                                );
+
+                                if (remainingTeachers.length === 0) {
+                                    // Tüm öğretmenler temizlendi → Violation'ı tamamen sil
+                                    shouldRemove = true;
+                                    break;
+                                } else {
+                                    // Hala çakışan öğretmen var → Listeyi güncelle
+                                    updatedViolation.slotIdentifier = {
+                                        ...id,
+                                        teacherNames: remainingTeachers
+                                    };
+                                    // Bu slot için işlem tamamlandı, ama violation devam ediyor
+                                }
+                            }
+                            // ✅ ESKİ FORMAT: teacherName string (backward compatibility)
+                            else if (id.teacherName) {
+                                // Eski formatta: eşleşen öğretmen varsa tamamını sil
+                                if (id.teacherName.toLocaleUpperCase('tr') === slot.teacherName.toLocaleUpperCase('tr')) {
+                                    shouldRemove = true;
+                                    break;
+                                }
+                            }
                         }
                     }
                     // Eski violation kaydı (slotIdentifier yok): Öğrenci+gün+saat eşleşmesine bak
@@ -9585,7 +9613,7 @@ HTML_TEMPLATE = '''
                 }
 
                 if (!shouldRemove) {
-                    remainingViolations.push(violation);
+                    remainingViolations.push(updatedViolation);
                 }
             });
 
@@ -10010,6 +10038,22 @@ HTML_TEMPLATE = '''
                 const slotDay = group.swappedCell === draggedCell ? savedDraggedData.day : savedSwapPendingData.targetDay;
                 const slotTime = group.swappedCell === draggedCell ? savedDraggedData.time : savedSwapPendingData.targetTime;
 
+                // ✅ YENİ: TÜM çakışan öğretmenleri topla
+                const allConflictingTeachers = [teacherName]; // Öğrencinin bulunduğu öğretmen
+
+                // Çakıştığı diğer öğretmenleri de ekle
+                group.conflicts.forEach(conflict => {
+                    const conflictCellIndex = Array.from(conflict.cell.parentElement.children).indexOf(conflict.cell);
+                    const conflictTeacherHeader = headerRow ? headerRow.children[conflictCellIndex] : null;
+                    const conflictTeacherText = conflictTeacherHeader ? conflictTeacherHeader.textContent : '';
+                    const conflictTeacherMatch = conflictTeacherText.match(/\(([^)]+)\)/);
+                    const conflictTeacherName = conflictTeacherMatch ? conflictTeacherMatch[1].trim() : '';
+
+                    if (conflictTeacherName && !allConflictingTeachers.includes(conflictTeacherName)) {
+                        allConflictingTeachers.push(conflictTeacherName);
+                    }
+                });
+
                 saveViolationToPanel({
                     type: 'aykiri_swap',
                     week: currentWeekView,
@@ -10025,7 +10069,7 @@ HTML_TEMPLATE = '''
                         day: slotDay,
                         time: slotTime,
                         studentName: group.studentName,
-                        teacherName: teacherName
+                        teacherNames: allConflictingTeachers  // ✅ TÜM çakışan öğretmenlerin listesi
                     },
                     timestamp: new Date().toISOString()
                 });
