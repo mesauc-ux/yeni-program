@@ -9572,12 +9572,13 @@ HTML_TEMPLATE = '''
                                     t.toLocaleUpperCase('tr') !== slot.teacherName.toLocaleUpperCase('tr')
                                 );
 
-                                if (remainingTeachers.length === 0) {
-                                    // Tüm öğretmenler temizlendi → Violation'ı tamamen sil
+                                // ✅ FIX: Çakışma = 2+ öğretmenle aynı anda ders
+                                // 1 veya daha az öğretmen kaldıysa → Normal durum, violation sil
+                                if (remainingTeachers.length <= 1) {
                                     shouldRemove = true;
                                     break;
                                 } else {
-                                    // Hala çakışan öğretmen var → Listeyi güncelle
+                                    // 2+ öğretmen var → Hala çakışma devam ediyor
                                     updatedViolation.slotIdentifier = {
                                         ...id,
                                         teacherNames: remainingTeachers
